@@ -126,7 +126,7 @@ export default function App() {
     setCustomError('');
 
     const chars = customInput.split('').filter(c => /[\u4e00-\u9fa5]/.test(c));
-    const uniqueChars = Array.from(new Set(chars));
+    const uniqueChars: string[] = Array.from(new Set(chars));
 
     if (uniqueChars.length === 0) {
       setCustomError("No Chinese characters detected.");
