@@ -7,7 +7,6 @@ import {
 } from 'lucide-react';
 import { CharacterData, GameState, GameMode } from './types';
 import { RADICALS_DATA, NUMBERS_DATA, ANIMALS } from './data';
-import { fetchCharacterInfo } from './services/gemini';
 
 // Utility to shuffle array
 const shuffle = <T,>(array: T[]): T[] => {
@@ -135,16 +134,7 @@ export default function App() {
     }
 
     const allLocalData = [...RADICALS_DATA, ...NUMBERS_DATA];
-    const localMatches = uniqueChars.map(char => allLocalData.find(r => r.char === char)).filter(Boolean) as CharacterData[];
-    
-    const missingChars = uniqueChars.filter(char => !allLocalData.some(r => r.char === char));
-
-    let remoteMatches: CharacterData[] = [];
-    if (missingChars.length > 0) {
-      remoteMatches = await fetchCharacterInfo(missingChars);
-    }
-
-    const finalGroup = [...localMatches, ...remoteMatches];
+    const finalGroup = uniqueChars.map(char => allLocalData.find(r => r.char === char)).filter(Boolean) as CharacterData[];
 
     if (finalGroup.length > 0) {
         setMode('custom');
