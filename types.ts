@@ -11,5 +11,11 @@ export interface Animal {
   message: string;
 }
 
-export type GameState = 'welcome' | 'playing' | 'setup_custom';
+export interface CharacterStats {
+  tested: number;
+  correct: number;
+  wrong: number;
+}
+
+export type GameState = 'welcome' | 'playing' | 'setup_custom' | 'stats';
 export type GameMode = 'endless' | 'focus' | 'numbers' | 'custom';

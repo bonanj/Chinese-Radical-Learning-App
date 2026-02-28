@@ -3,9 +3,10 @@ import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import { 
   Trophy, RotateCcw, ChevronRight, Sparkles, XCircle, 
   CheckCircle, Target, RefreshCw, Home, Volume2, 
-  VolumeX, Hash, Edit3, ArrowRight, Loader2
+  VolumeX, Hash, Edit3, ArrowRight, Loader2,
+  BarChart2, Download, Upload, Search, ArrowLeft, Trash2
 } from 'lucide-react';
-import { CharacterData, GameState, GameMode } from './types';
+import { CharacterData, GameState, GameMode, CharacterStats } from './types';
 import { RADICALS_DATA, NUMBERS_DATA, ANIMALS } from './data';
 
 // Utility to shuffle array
@@ -30,6 +31,40 @@ export default function App() {
   const [selectedOption, setSelectedOption] = useState<CharacterData | null>(null);
   const [isCorrect, setIsCorrect] = useState<boolean | null>(null);
   const [isMuted, setIsMuted] = useState(false);
+  const [stats, setStats] = useState<Record<string, CharacterStats>>({});
+  const [statsSearch, setStatsSearch] = useState('');
+  const [selectedChars, setSelectedChars] = useState<Set<string>>(new Set());
+
+  const allSupportedChars = useMemo(() => {
+    const seen = new Set<string>();
+    const result: CharacterData[] = [];
+    [...RADICALS_DATA, ...NUMBERS_DATA].forEach(item => {
+      if (!seen.has(item.char)) {
+        seen.add(item.char);
+        result.push(item);
+      }
+    });
+    return result;
+  }, []);
+
+  // Load stats from localStorage
+  useEffect(() => {
+    const savedStats = localStorage.getItem('radical_master_stats');
+    if (savedStats) {
+      try {
+        setStats(JSON.parse(savedStats));
+      } catch (e) {
+        console.error("Failed to parse stats", e);
+      }
+    }
+  }, []);
+
+  // Save stats to localStorage
+  useEffect(() => {
+    if (Object.keys(stats).length > 0) {
+      localStorage.setItem('radical_master_stats', JSON.stringify(stats));
+    }
+  }, [stats]);
 
   const avatar = useMemo(() => {
     return ANIMALS[Math.floor(Math.random() * ANIMALS.length)];
@@ -161,6 +196,20 @@ export default function App() {
     setIsCorrect(correct);
     setTotalAnswered(prev => prev + 1);
 
+    // Update stats
+    setStats(prev => {
+      const char = currentRadical.char;
+      const current = prev[char] || { tested: 0, correct: 0, wrong: 0 };
+      return {
+        ...prev,
+        [char]: {
+          tested: current.tested + 1,
+          correct: current.correct + (correct ? 1 : 0),
+          wrong: current.wrong + (correct ? 0 : 1)
+        }
+      };
+    });
+
     if (correct) {
       setScore(prev => prev + 10);
       setStreak(prev => prev + 1);
@@ -185,6 +234,97 @@ export default function App() {
     if (mode === 'numbers') return 'Numbers 0-10';
     if (mode === 'custom') return 'Custom List';
     return 'Endless Mode';
+  };
+
+  const exportStatsToCSV = () => {
+    const header = "Character,Tested,Correct,Wrong,Accuracy\n";
+    const rows = (Object.entries(stats) as [string, CharacterStats][]).map(([char, s]) => {
+      const accuracy = s.tested > 0 ? ((s.correct / s.tested) * 100).toFixed(1) : "0.0";
+      return `${char},${s.tested},${s.correct},${s.wrong},${accuracy}%`;
+    }).join("\n");
+    
+    const blob = new Blob([header + rows], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement("a");
+    const url = URL.createObjectURL(blob);
+    link.setAttribute("href", url);
+    link.setAttribute("download", "radical_master_stats.csv");
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const handleImportCSV = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const text = event.target?.result as string;
+      const lines = text.split('\n');
+      const newStats: Record<string, CharacterStats> = { ...stats };
+      
+      // Skip header
+      for (let i = 1; i < lines.length; i++) {
+        const line = lines[i].trim();
+        if (!line) continue;
+        const [char, tested, correct, wrong] = line.split(',');
+        if (char && tested !== undefined && correct !== undefined && wrong !== undefined) {
+          newStats[char] = {
+            tested: parseInt(tested),
+            correct: parseInt(correct),
+            wrong: parseInt(wrong)
+          };
+        }
+      }
+      setStats(newStats);
+      setTutorMessage("Stats imported successfully!");
+    };
+    reader.readAsText(file);
+  };
+
+  const clearStats = () => {
+    if (confirm("Are you sure you want to clear all statistics? This cannot be undone.")) {
+      setStats({});
+      localStorage.removeItem('radical_master_stats');
+      setTutorMessage("Statistics cleared.");
+    }
+  };
+
+  const toggleCharSelection = (char: string) => {
+    const newSelection = new Set(selectedChars);
+    if (newSelection.has(char)) {
+      newSelection.delete(char);
+    } else {
+      newSelection.add(char);
+    }
+    setSelectedChars(newSelection);
+  };
+
+  const startPracticeFromSelection = () => {
+    if (selectedChars.size === 0) return;
+    
+    const selectedData = allSupportedChars.filter(c => selectedChars.has(c.char));
+    setMode('custom');
+    setCustomGroup(selectedData);
+    setScore(0);
+    setStreak(0);
+    setTotalAnswered(0);
+    setGameState('playing');
+    setTutorMessage(`Practicing ${selectedData.length} selected characters!`);
+    generateQuestion(selectedData);
+  };
+
+  const selectAllFiltered = (filtered: CharacterData[]) => {
+    const newSelection = new Set(selectedChars);
+    filtered.forEach(c => newSelection.add(c.char));
+    setSelectedChars(newSelection);
+  };
+
+  const deselectAllFiltered = (filtered: CharacterData[]) => {
+    const newSelection = new Set(selectedChars);
+    filtered.forEach(c => newSelection.delete(c.char));
+    setSelectedChars(newSelection);
   };
 
   return (
@@ -265,11 +405,12 @@ export default function App() {
                 { id: 'endless', icon: <RotateCcw size={20}/>, color: 'blue', title: 'Endless Journey', desc: 'Random 214 Kangxi radicals' },
                 { id: 'focus', icon: <Target size={20}/>, color: 'purple', title: 'Focus 5', desc: 'Intensive drills on a small batch' },
                 { id: 'numbers', icon: <Hash size={20}/>, color: 'emerald', title: 'Numbers 0-10', desc: 'Learn to count like a pro' },
-                { id: 'custom_setup', icon: <Edit3 size={20}/>, color: 'orange', title: 'Custom List', desc: 'Practice any characters you want' }
+                { id: 'custom_setup', icon: <Edit3 size={20}/>, color: 'orange', title: 'Custom List', desc: 'Practice any characters you want' },
+                { id: 'stats_view', icon: <BarChart2 size={20}/>, color: 'indigo', title: 'My Statistics', desc: 'Track your learning progress' }
               ].map((m) => (
                 <button 
                   key={m.id}
-                  onClick={() => handleStart(m.id)}
+                  onClick={() => m.id === 'stats_view' ? setGameState('stats') : handleStart(m.id)}
                   className="group bg-white p-4 rounded-2xl shadow-sm border border-slate-200 hover:border-indigo-400 hover:shadow-xl hover:shadow-indigo-50 transition-all text-left flex items-center gap-4 active:scale-[0.98]"
                 >
                   <div className={`bg-${m.color}-100 p-3 rounded-xl text-${m.color}-600 group-hover:scale-110 transition-transform`}>
@@ -442,6 +583,188 @@ export default function App() {
               )}
             </div>
 
+          </div>
+        )}
+
+        {gameState === 'stats' && (
+          <div className="space-y-6 animate-in fade-in slide-in-from-bottom-6 duration-500 flex flex-col h-full max-h-[80vh]">
+            <div className="flex items-center justify-between">
+              <button 
+                onClick={() => setGameState('welcome')}
+                className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
+              >
+                <ArrowLeft size={24} />
+              </button>
+              <h2 className="text-2xl font-black text-slate-800">My Statistics</h2>
+              <div className="flex gap-2">
+                <button 
+                  onClick={exportStatsToCSV}
+                  className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
+                  title="Export to CSV"
+                >
+                  <Download size={20} />
+                </button>
+                <label className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors cursor-pointer" title="Import from CSV">
+                  <Upload size={20} />
+                  <input type="file" accept=".csv" onChange={handleImportCSV} className="hidden" />
+                </label>
+                <button 
+                  onClick={clearStats}
+                  className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                  title="Clear All Stats"
+                >
+                  <Trash2 size={20} />
+                </button>
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              <div className="relative">
+                <div className="absolute inset-y-0 left-3 flex items-center pointer-events-none">
+                  <Search size={16} className="text-slate-400" />
+                </div>
+                <input 
+                  type="text"
+                  value={statsSearch}
+                  onChange={(e) => setStatsSearch(e.target.value)}
+                  placeholder="Search radicals or numbers..."
+                  className="w-full pl-10 pr-4 py-3 rounded-xl border border-slate-200 focus:border-indigo-500 outline-none transition-all text-sm"
+                />
+              </div>
+
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex gap-2">
+                  <button 
+                    onClick={() => {
+                      const filtered = allSupportedChars.filter(c => 
+                        c.char.includes(statsSearch) || 
+                        c.meaning.toLowerCase().includes(statsSearch.toLowerCase()) ||
+                        c.pinyin.toLowerCase().includes(statsSearch.toLowerCase())
+                      );
+                      selectAllFiltered(filtered);
+                    }}
+                    className="text-[10px] font-bold text-indigo-600 bg-indigo-50 px-3 py-1.5 rounded-lg hover:bg-indigo-100 transition-colors"
+                  >
+                    SELECT ALL
+                  </button>
+                  <button 
+                    onClick={() => {
+                      const filtered = allSupportedChars.filter(c => 
+                        c.char.includes(statsSearch) || 
+                        c.meaning.toLowerCase().includes(statsSearch.toLowerCase()) ||
+                        c.pinyin.toLowerCase().includes(statsSearch.toLowerCase())
+                      );
+                      deselectAllFiltered(filtered);
+                    }}
+                    className="text-[10px] font-bold text-slate-500 bg-slate-100 px-3 py-1.5 rounded-lg hover:bg-slate-200 transition-colors"
+                  >
+                    DESELECT ALL
+                  </button>
+                </div>
+                <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                  {selectedChars.size} SELECTED
+                </div>
+              </div>
+            </div>
+
+            <div className="flex-1 overflow-y-auto pr-1 space-y-2 custom-scrollbar">
+              {allSupportedChars
+                .filter(c => 
+                  c.char.includes(statsSearch) || 
+                  c.meaning.toLowerCase().includes(statsSearch.toLowerCase()) ||
+                  c.pinyin.toLowerCase().includes(statsSearch.toLowerCase())
+                )
+                .sort((a, b) => {
+                  const statsA = stats[a.char]?.tested || 0;
+                  const statsB = stats[b.char]?.tested || 0;
+                  return statsB - statsA;
+                })
+                .map((c) => {
+                  const s = stats[c.char] || { tested: 0, correct: 0, wrong: 0 };
+                  const accuracy = s.tested > 0 ? Math.round((s.correct / s.tested) * 100) : 0;
+                  const isSelected = selectedChars.has(c.char);
+                  
+                  return (
+                    <div 
+                      key={c.char} 
+                      onClick={() => toggleCharSelection(c.char)}
+                      className={`
+                        p-4 rounded-2xl border transition-all flex items-center gap-4 cursor-pointer active:scale-[0.99]
+                        ${isSelected ? 'bg-indigo-50 border-indigo-200 shadow-md shadow-indigo-50' : 'bg-white border-slate-100 shadow-sm hover:border-indigo-100'}
+                      `}
+                    >
+                      <div className="flex items-center justify-center">
+                        <div className={`
+                          w-5 h-5 rounded border-2 flex items-center justify-center transition-colors
+                          ${isSelected ? 'bg-indigo-600 border-indigo-600' : 'border-slate-300 bg-white'}
+                        `}>
+                          {isSelected && <CheckCircle size={14} className="text-white" />}
+                        </div>
+                      </div>
+
+                      <div className="hanzi text-3xl font-bold text-indigo-600 w-12 h-12 flex items-center justify-center bg-indigo-50 rounded-xl shrink-0">
+                        {c.char}
+                      </div>
+
+                      <div className="flex-1 min-w-0">
+                        <div className="flex justify-between items-start mb-1">
+                          <div>
+                            <h4 className="font-bold text-slate-700 leading-none">{c.pinyin}</h4>
+                            <p className="text-[10px] text-slate-400 font-medium truncate">{c.meaning}</p>
+                          </div>
+                          {s.tested > 0 && (
+                            <div className="text-right">
+                              <span className={`text-xs font-black ${accuracy >= 80 ? 'text-emerald-500' : accuracy >= 50 ? 'text-amber-500' : 'text-red-500'}`}>
+                                {accuracy}%
+                              </span>
+                              <p className="text-[8px] text-slate-400 font-bold uppercase tracking-tighter">ACCURACY</p>
+                            </div>
+                          )}
+                          <button 
+                            onClick={(e) => { e.stopPropagation(); speak(c.char, true); }}
+                            className="p-2 text-slate-300 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all shrink-0 ml-2"
+                            title="Play pronunciation"
+                          >
+                            <Volume2 size={18} />
+                          </button>
+                        </div>
+                        {s.tested > 0 ? (
+                          <div className="flex gap-3 mt-2">
+                            <div className="flex flex-col">
+                              <span className="text-[10px] font-black text-slate-800 leading-none">{s.tested}</span>
+                              <span className="text-[8px] text-slate-400 font-bold uppercase tracking-tighter">TESTED</span>
+                            </div>
+                            <div className="flex flex-col">
+                              <span className="text-[10px] font-black text-emerald-600 leading-none">{s.correct}</span>
+                              <span className="text-[8px] text-slate-400 font-bold uppercase tracking-tighter">CORRECT</span>
+                            </div>
+                            <div className="flex flex-col">
+                              <span className="text-[10px] font-black text-red-600 leading-none">{s.wrong}</span>
+                              <span className="text-[8px] text-slate-400 font-bold uppercase tracking-tighter">WRONG</span>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="text-[8px] text-slate-300 font-bold uppercase tracking-widest mt-2">
+                            NOT TESTED YET
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+            </div>
+
+            {selectedChars.size > 0 && (
+              <div className="pt-4 animate-in slide-in-from-bottom-4 duration-300">
+                <button 
+                  onClick={startPracticeFromSelection}
+                  className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-4 rounded-2xl shadow-lg shadow-indigo-200 transition-all active:scale-95 flex items-center justify-center gap-2"
+                >
+                  <Target size={20} />
+                  PRACTICE {selectedChars.size} SELECTED
+                </button>
+              </div>
+            )}
           </div>
         )}
 

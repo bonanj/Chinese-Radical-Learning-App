@@ -9,6 +9,12 @@ Radical Master is an interactive Chinese character learning application designed
   - **Focus Mode**: Master a small, randomly selected set of 5 characters at a time.
   - **Numbers Mode**: Learn and practice Chinese digits from 0 to 10.
   - **Custom Mode**: Input your own list of Chinese characters to practice from the app's database.
+- **Comprehensive Statistics**:
+  - Track your performance for every character, including accuracy, total tests, and correct/wrong counts.
+  - View a complete list of all 214 radicals and numbers to see what you've mastered and what needs work.
+  - Listen to pronunciations directly from the stats view for quick review.
+- **Data Portability**: Export your learning stats to a CSV file or import them to sync progress across devices.
+- **Targeted Practice**: Select specific characters from your statistics list to instantly start a custom practice session.
 - **Audio Pronunciation**: Uses built-in speech synthesis to provide Mandarin Chinese pronunciation for every character.
 - **Progress Tracking**: Keep track of your score and current streak to stay motivated.
 - **Interactive Tutor**: A friendly animal avatar guides you through your learning journey with encouraging messages.
@@ -18,6 +24,7 @@ Radical Master is an interactive Chinese character learning application designed
 - **React & TypeScript**: The application is built using React for a responsive UI and TypeScript for robust type safety.
 - **Tailwind CSS**: Modern, utility-first styling for a clean and accessible interface.
 - **Web Speech API**: Pronunciation is handled via the browser's native `speechSynthesis` API, configured for Mandarin Chinese (`zh-CN`).
+- **Persistence**: Statistics are automatically saved to your browser's `localStorage`, ensuring your progress is preserved across sessions.
 - **Data Management**: Core radicals and numbers are stored locally in `data.ts` for instant access.
 
 ## Run Locally
